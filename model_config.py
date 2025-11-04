@@ -169,10 +169,10 @@ class EvaluationConfig:
     calculate_recall: bool = True # Whether to calculate recall
     calculate_f1: bool = True # Whether to calculate F1-score
     calculate_auc: bool = True # Whether to calculate AUC-ROC
-    calculate_confussion_matrix: bool = True # Whether to calculate confusion matrix
+    calculate_confusion_matrix: bool = True # Whether to calculate confusion matrix
 
     # Visualizations
-    plot_confussion_matrix: bool = True # Whether to plot confusion matrix
+    plot_confusion_matrix: bool = True # Whether to plot confusion matrix
     plot_roc_curve: bool = True # Whether to plot ROC curve
     plot_feature_importance: bool = True # Whether to plot feature importance
     plot_precision_recall_curve: bool = True # Whether to plot precision-recall curve

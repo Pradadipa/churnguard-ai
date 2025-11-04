@@ -166,7 +166,7 @@ class ChurnDataLoader:
         logger.info("Feature scaling complete.")
         return X_train_scaled, X_val_scaled, X_test_scaled
     
-    def save_scaler(self, path: str = None):
+    def save_scaler(self, filepath: str = None):
         """Save fitted scaler for production use"""
         if filepath is None:
             filepath = f"{self.config.models_dir}/feature_scaler.joblib"
@@ -425,8 +425,8 @@ class ModelTrainer:
 
     def _calculate_cv_scores(
         self,
-        X: pd.DataFrame,
-        y: pd.Series
+        X_train: pd.DataFrame,
+        y_train: pd.Series
     ):
         """Calculate cross-validation scores for the trained model"""
         logger.info(f"Calculating {self.config.cv_folds}-fold cross-validation scores...")

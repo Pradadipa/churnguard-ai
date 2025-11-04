@@ -22,7 +22,8 @@ from sklearn.metrics import (
     roc_auc_score,
     confusion_matrix,
     classification_report,
-    precision_recall_curve
+    precision_recall_curve,
+    roc_curve
 )
 
 from model_config import (
@@ -100,7 +101,7 @@ class ModelEvaluator:
             metrics['f1_score'] = f1_score(y_test, y_pred)
 
         # ROC AUC
-        if self.config.calculate_roc_auc:
+        if self.config.calculate_auc:
             metrics['roc_auc'] = roc_auc_score(y_test, y_pred_proba)
         
         # Confusion Matrix
@@ -119,8 +120,8 @@ class ModelEvaluator:
             print(classification_report(y_test, y_pred, target_names=['Not Churn', 'Churn']))
 
         # Create visualizations
-        if self.config.plot_confussion_matrix:
-            self.plot_confussion_matrix(
+        if self.config.plot_confusion_matrix:
+            self.plot_confusion_matrix(
                 metrics['confusion_matrix'], 
                 model_name,
                 save=self.config.save_plots
@@ -151,7 +152,7 @@ class ModelEvaluator:
     def _print_metrics(self, metrics: Dict[str, Any], model_name: str):
         """Prints metrics in a nice format."""
         logger.info(f"\nEvaluation Metrics for {model_name}:")  
-        loger.info("-"*40)
+        logger.info("-"*40)
 
         if 'accuracy' in metrics:
             logger.info(f"Accuracy: {metrics['accuracy']:.4f} ({metrics['accuracy']*100:.2f}%)") 
@@ -171,10 +172,10 @@ class ModelEvaluator:
         if 'confusion_matrix' in metrics:
             cm = metrics['confusion_matrix']
             logger.info("Confusion Matrix:")
-            logger.logger.info(f"  TN: {cm[0,0]:4d}  |  FP: {cm[0,1]:4d}")
-            logger.info(f"  FN: {cm[1,0]:4d}  |  TP: {cm[1,1]:4d}")
+            logger.info(f"  TN: {cm[0] [0]:4d}  |  FP: {cm[0] [1]:4d}")
+            logger.info(f"  FN: {cm[1] [0]:4d}  |  TP: {cm[1] [1]:4d}")
 
-    def plot_confussion_matrix(
+    def plot_confusion_matrix(
             self,
             cm: np.ndarray,
             model_name: str,
@@ -199,6 +200,7 @@ class ModelEvaluator:
         plt.xlabel('Predicted Label', fontsize=12)
 
         # Add percentages
+        cm = np.array(cm)  
         total = cm.sum() 
         for i in range(2):
             for j in range(2):
@@ -310,7 +312,7 @@ class ModelEvaluator:
 
         # Create DataFrame
         importance_df = pd.DataFrame({
-            'featue': feature_names,
+            'feature': feature_names,
             'importance': importances
         })
 
@@ -352,20 +354,123 @@ class ModelEvaluator:
         for idx, row in importance_df.head(5).iterrows():
             logger.info(f"  {row['display_name']}: {row['importance']:.4f}")
 
-    def _save_metrics(self, metrics: Dict[str, Any], model_name: str):
+    def _save_metrics_json(self, metrics: Dict[str, Any], model_name: str):
         """Save metrics to Json file."""
         # Convert numpy arrays to lists for JSON serialization
         metrics_serializable = {}
 
         for key, value in metrics.items():
             if key == 'confusion_matrix':
-                metrics_serializable[key] = value.tolist() 
+                metrics_serializable[key] = value
             elif isinstance(value, np.ndarray):
-                metrics_serializable[key] = value.tolist()  
-            elif isinstance(value, (np.int64, np.int32)):
-                metrics_serializable[key] = int(value)
-            elif isinstance(value, (np.float64, np.float32)):
+                metrics_serializable[key] = value 
+            elif isinstance(value, (np.float32, np.float64)):
                 metrics_serializable[key] = float(value)
+            elif isinstance(value, (np.int32, np.int64)):
+                metrics_serializable[key] = int(value)
             else:
-                metrics_serializable[key] = value   
+                metrics_serializable[key] = value
 
+        filepath = f"{DATA_CONFIG.results_dir}/{model_name.lower().replace(' ', '_')}_metrics.json"
+        with open(filepath, 'w') as f:
+            json.dump(metrics_serializable, f, indent=2)
+
+        logger.info(f"Metrics saved to {filepath}")
+
+    def compare_models(self, models_metrics: Dict[str, Dict], save: bool = True):
+        """Compares multiple models based on their evaluation metrics.
+
+        Args:
+            models_metrics (Dict[str, Dict]): Dictionary with model names as keys and their metrics as values.
+            save (bool): Whether to save the comparison report.
+        """
+        logger.info("="*80)
+        logger.info("MODEL COMPARISON REPORT")  
+        logger.info("="*80) 
+
+        # Create comparison DataFrame
+        comparison_data = []
+
+        for model_name, metrics in models_metrics.items():
+            row = {'Model:': model_name}
+            row.update({
+                'Accuracy': metrics.get('accuracy', 0),
+                'Precision': metrics.get('precision', 0),   
+                'Recall': metrics.get('recall', 0),
+                'F1': metrics.get('f1', 0),
+                'AUC-ROC': metrics.get('auc_roc', 0)
+            })
+            comparison_data.append(row)
+        
+        comparison_df = pd.DataFrame(comparison_data)
+
+        # Print comparison table
+        logger.info("\nModel Comparison Table:")
+        logger.info(comparison_df.to_string(index=False, float_format="{:.4f}".format))
+
+        # plot comparison bar chart
+        self._plot_model_comparison(comparison_df, save=save)
+
+        # Identify best model
+        best_model = comparison_df.loc[comparison_df['F1'].idxmax(), 'Model']
+        best_f1 = comparison_df['F1'].max()
+
+        logger.info(f"\nBest Model based on F1 Score: {best_model} (F1: {best_f1:.4f})")
+
+        return comparison_df
+
+    def _plot_model_comparison(self, comparison_df: pd.DataFrame, save: bool = True):
+        """Plot model comparison bar chart"""
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        
+        metrics = ['Accuracy', 'Precision', 'Recall', 'F1', 'AUC-ROC']
+        
+        # Plot 1: All metrics
+        comparison_df_melted = comparison_df.melt(
+            id_vars=['Model'],
+            value_vars=metrics,
+            var_name='Metric',
+            value_name='Score'
+        )
+        
+        sns.barplot(
+            data=comparison_df_melted,
+            x='Metric',
+            y='Score',
+            hue='Model',
+            ax=axes[0]
+        )
+        
+        axes[0].set_title('Model Comparison - All Metrics', fontsize=12, fontweight='bold')
+        axes[0].set_ylim(0, 1.0)
+        axes[0].legend(loc='lower right')
+        axes[0].grid(axis='y', alpha=0.3)
+        
+        # Plot 2: F1 and AUC focus
+        f1_auc_df = comparison_df[['Model', 'F1', 'AUC-ROC']].melt(
+            id_vars=['Model'],
+            var_name='Metric',
+            value_name='Score'
+        )
+        
+        sns.barplot(
+            data=f1_auc_df,
+            x='Model',
+            y='Score',
+            hue='Metric',
+            ax=axes[1]
+        )
+        
+        axes[1].set_title('F1 Score vs AUC-ROC', fontsize=12, fontweight='bold')
+        axes[1].set_ylim(0, 1.0)
+        axes[1].legend(loc='lower right')
+        axes[1].grid(axis='y', alpha=0.3)
+        
+        plt.tight_layout()
+        
+        if save:
+            filepath = f"{DATA_CONFIG.results_dir}/model_comparison.png"
+            plt.savefig(filepath, dpi=150, bbox_inches='tight')
+            logger.info(f"Saved comparison plot to {filepath}")
+        
+        plt.close()

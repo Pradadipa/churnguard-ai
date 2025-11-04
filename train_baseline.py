@@ -7,7 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from model_trainer import ChutnDataLoader, ModelTrainer # Importing ModelTrainer class
+from model_trainer import ChurnDataLoader, ModelTrainer # Importing ModelTrainer class
 from model_evaluator import ModelEvaluator # Importing ModelEvaluator class
 from model_config import DATA_CONFIG, MODEL_CONFIG # Importing configuration dictionaries
 
@@ -79,7 +79,7 @@ def main():
         )
 
         # Save model
-        model_path = f"{DATA_CONFIG.model_dir}/logistic_regression_model.joblib"
+        model_path = f"{DATA_CONFIG.models_dir}/logistic_regression_model.joblib"
         trainer.save_model(model_path)
 
         # ====================================================
@@ -121,7 +121,7 @@ def main():
 
         evaluator.plot_feature_importance(
             model,
-            DATA_CONFIG.feature_colums,
+            DATA_CONFIG.feature_columns,
             "Logistic Regression",
             save=True
         )
@@ -145,10 +145,10 @@ def main():
         logger.info(f"\nActual Test Set Performance")
         logger.info(f" Accuracy: {test_metrics['accuracy']:.2%} " +
                     ("✓" if test_metrics['accuracy'] >= accuracy_target else "X"))
-        logger.info(f" AUC-ROC: {test_metrics['auc_roc']:.2%} " +
-                    ("✓" if test_metrics['auc_roc'] >= auc_target else "X"))
-        logger.info(f" F1 Score: {test_metrics['f1']:.2%} " +
-                    ("✓" if test_metrics['f1'] >= f1_target else "X"))
+        logger.info(f" AUC-ROC: {test_metrics['roc_auc']:.2%} " +
+                    ("✓" if test_metrics['roc_auc'] >= auc_target else "X"))
+        logger.info(f" F1 Score: {test_metrics['f1_score']:.2%} " +
+                    ("✓" if test_metrics['f1_score'] >= f1_target else "X"))
         
         # ===============================================
         # SUCCSS SUMMARY
@@ -178,8 +178,8 @@ def main():
         # Determine if targets met
         targets_met = (
             test_metrics['accuracy'] >= accuracy_target and
-            test_metrics['auc_roc'] >= auc_target and
-            test_metrics['f1'] >= f1_target
+            test_metrics['roc_auc'] >= auc_target and
+            test_metrics['f1_score'] >= f1_target
         )
 
         if targets_met:
