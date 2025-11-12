@@ -178,7 +178,7 @@ def main():
         # Determine if targets met
         targets_met = (
             test_metrics['accuracy'] >= accuracy_target and
-            test_metrics['roc_auc'] >= auc_target and
+            test_metrics['roc_auc']  >= auc_target and
             test_metrics['f1_score'] >= f1_target
         )
 
